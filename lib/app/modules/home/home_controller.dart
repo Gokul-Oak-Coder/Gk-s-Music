@@ -9,11 +9,14 @@ class HomeController extends GetxController {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   var songs = <SongModel>[].obs;
-  //var currentIndex = RxnInt();
   var currentIndex = (-1).obs;
   var isPlaying = false.obs;
   final progressNotifier = ValueNotifier<double>(0.0);
   var progress = 0.0.obs;
+  var currentPosition = Duration.zero.obs;
+  var totalDuration = Duration.zero.obs;
+  var isSearching = false.obs;
+  var searchText = ''.obs;
 
   final Rx<LoopMode> loopMode = LoopMode.off.obs;
   final RxBool isShuffleEnabled = false.obs;
@@ -21,6 +24,17 @@ class HomeController extends GetxController {
 
   SongModel? get currentSong =>
       currentIndex.value >= 0 ? songs[currentIndex.value] : null;
+  AudioPlayer get player => _audioPlayer;
+
+  List<SongModel> get filteredSongs {
+    if (searchText.isEmpty) return [];
+    return songs
+        .where(
+          (song) =>
+              song.title.toLowerCase().contains(searchText.value.toLowerCase()),
+        )
+        .toList();
+  }
 
   @override
   void onInit() {
@@ -44,35 +58,10 @@ class HomeController extends GetxController {
     songs.assignAll(data);
   }
 
-  /*  Future<void> playSong(SongModel song, int index) async {
-    if (index < 0 || index >= songs.length) return;
-
-    final song = songs[index];
-    try {
-      await _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
-      _audioPlayer.play();
-      currentIndex.value = index;
-      isPlaying.value = true;
-
-      _audioPlayer.positionStream.listen((position) {
-        final duration = _audioPlayer.duration;
-        if (duration != null && duration.inMilliseconds > 0) {
-          final value = position.inMilliseconds / duration.inMilliseconds * 100;
-          progress.value = value.clamp(0, 100);
-          */ /*progressNotifier.value =
-              (position.inMilliseconds / duration.inMilliseconds * 100).clamp(
-                0,
-                100,
-              );*/ /*
-        }
-      });
-    } catch (e) {
-      Get.snackbar('Error', 'Cannot play song: $e');
-    }
-  }*/
-
   Future<void> playSong(SongModel song, int index) async {
     if (index < 0 || index >= songs.length) return;
+
+    currentIndex.value = index;
 
     try {
       // Build playlist
@@ -91,13 +80,17 @@ class HomeController extends GetxController {
 
       _audioPlayer.play();
 
-      currentIndex.value = index;
+      //currentIndex.value = index;
       isPlaying.value = true;
 
       _audioPlayer.positionStream.listen((position) {
+        currentPosition.value = position;
+
         final duration = _audioPlayer.duration;
         if (duration != null && duration.inMilliseconds > 0) {
+          totalDuration.value = duration;
           final value = position.inMilliseconds / duration.inMilliseconds * 100;
+          progressNotifier.value = value.clamp(0, 100);
           progress.value = value.clamp(0, 100);
         }
       });
@@ -124,26 +117,44 @@ class HomeController extends GetxController {
 
   void nextSong() {
     final nextIndex = currentIndex.value + 1;
-    //_audioPlayer.seekToNext();
     if (nextIndex < songs.length) {
       playSong(songs[nextIndex], nextIndex);
+    } else if (nextIndex == songs.length) {
+      Get.snackbar("warning", "reached last");
     }
   }
 
   void previousSong() {
     final prevIndex = currentIndex.value - 1;
-    //_audioPlayer.seekToPrevious();
     if (prevIndex >= 0) {
       playSong(songs[prevIndex], prevIndex);
     }
   }
 
-  /*void nextSong() {
-    _audioPlayer.seekToNext();
+  /*  void nextSong() {
+    try {
+      if (currentIndex.value == songs.length) {
+        Get.snackbar("warning", "last song");
+      } else {
+        currentIndex.value = currentIndex.value + 1;
+        _audioPlayer.seekToNext();
+      }
+    } catch (e) {
+      null;
+    }
   }
 
   void previousSong() {
-    _audioPlayer.seekToPrevious();
+    try {
+      if (currentIndex.value == songs.length) {
+        Get.snackbar("warning", "last song");
+      } else {
+        currentIndex.value = currentIndex.value - 1;
+        _audioPlayer.seekToPrevious();
+      }
+    } catch (e) {
+      Get.snackbar("warning", "last song");
+    }
   }*/
 
   void toggleShuffle() {
@@ -166,6 +177,7 @@ class HomeController extends GetxController {
     _audioPlayer.stop();
     isPlaying.value = false;
     currentIndex.value = 0;
+    progressNotifier.value = 0.0;
     progress.value = 0.0;
   }
 
