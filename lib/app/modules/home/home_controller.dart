@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query_forked/on_audio_query.dart';
@@ -43,9 +46,28 @@ class HomeController extends GetxController {
   }
 
   Future<void> _requestPermission() async {
-    var status = await Permission.storage.request();
-    if (status.isGranted) {
+    bool permissionGranted;
+    final deviceInfo = await DeviceInfoPlugin().androidInfo;
+    if (Platform.isAndroid && deviceInfo.version.sdkInt >= 33) {
+      // Android 13+: Request media permissions
+      permissionGranted = await Permission.audio.request().isGranted;
+    } else {
+      // Older Android: Request storage permission
+      permissionGranted = await Permission.storage.request().isGranted;
+    }
+    if (permissionGranted) {
       await getLocalSongs();
+    } else {
+      Fluttertoast.showToast(
+        msg:
+            "Permission Denied, Please grant storage/audio permission to load songs",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.grey,
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
     }
   }
 
